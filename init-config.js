@@ -11,41 +11,40 @@ const inquirer = require('inquirer')
 
 // 询问用户 cli 测试的 名字
 const initQuestions = () => {
-    return inquirer.prompt([
-        {
-            type: 'input',
-            name: 'command',
-            message: `请输入cli${
+    return inquirer.prompt([{
+        type: 'input',
+        name: 'command',
+        message: `请输入cli${
                 process.env.NODE_ENV === 'production' ? '发布' : '测试'
             }指令`,
-            validate: function (answer) {
-                if (answer.length < 1) {
-                    return `请输入cli${
+        validate: function (answer) {
+            if (answer.length < 1) {
+                return `请输入cli${
                         process.env.NODE_ENV === 'production' ? '发布' : '测试'
                     }指令`
+            } else {
+                const reg = /^[5A-Za-z0-9-\_]+$/
+                if (reg.test(answer)) {
+                    return true
                 } else {
-                    const reg = /^[5A-Za-z0-9-\_]+$/
-                    if (reg.test(answer)) {
-                        return true
-                    } else {
-                        console.log(
-                            chalk.redBright(
-                                `cli${
+                    console.log(
+                        chalk.redBright(
+                            `cli${
                                     process.env.NODE_ENV === 'production'
                                         ? '发布'
                                         : '测试'
                                 }指令只能输入英文，数字，下划线，横线`
-                            )
                         )
-                    }
+                    )
                 }
-            },
+            }
         },
-    ])
+    }, ])
 }
+
 /**
- *
- * @param {package.json里面的k属性} packageKey
+ * package.json里面的k属性
+ * @param {string} packageKey
  * @returns 当key存在的时候 返回key所对应的value 当key不存在的时候 就返回所有的package.json的内容
  */
 const readPackage = async (packageKey) => {
@@ -127,14 +126,22 @@ const runLinkCommand = async () => {
 /**
  * 移除全局指令
  */
-const runUnlinkCommand = async () => {
+const runUnlinkCommand = async (command) => {
     // 执行 npm unlink 移除全局指令 start
 
     console.log(chalk.blueBright('\n===> 开始移除全局指令\n'))
 
-    await execa('npm unlink', {
+    // 获取cli包的地址
+    const {
+        stdout
+    } = await execa(`which ${command}`, {
+        shell: true
+    })
+
+    // 开始执行删除
+    await execa(`rm -rf ${stdout}`, {
         shell: true,
-        stdio: [2, 2, 2],
+        stdio: [2, 2, 2]
     })
 
     console.log(chalk.blueBright('\n===> 已移除全局指令\n'))
@@ -184,6 +191,26 @@ const runPublishCommand = async () => {
 }
 
 /**
+ * 创建文件并记录指令
+ */
+const writeCommandFile = async (command) => {
+    const commandFilePath = path.resolve(__dirname, './command-db.json')
+    await fs.writeFileSync(commandFilePath, JSON.stringify({
+        command
+    }, null, 4))
+}
+
+/**
+ * 读取文件内的指令名称
+ */
+const readCommandFile = async () => {
+    const commandFilePath = path.resolve(__dirname, './command-db.json')
+    const commandOption = await fs.readFileSync(commandFilePath)
+    return JSON.parse(commandOption)['command']
+}
+
+
+/**
  * 初始化配置
  */
 const initConfig = async () => {
@@ -191,11 +218,14 @@ const initConfig = async () => {
     const isProduction = process.env.NODE_ENV === 'production'
     // 如果是发布
     if (isProduction) {
+        const commandName = await readCommandFile()
         // 运行 npm unlink 指令
-        await runUnlinkCommand()
+        await runUnlinkCommand(commandName)
         // 获取下一个版本
         const newVersion = await updatePackageVersion()
-        const { command } = await initQuestions()
+        const {
+            command
+        } = await initQuestions()
         const packageValue = {
             version: newVersion,
             bin: {
@@ -212,12 +242,16 @@ const initConfig = async () => {
         // 安装依赖
         await runInstallCommand()
         // 获取cli指令
-        const { command } = await initQuestions()
+        const {
+            command
+        } = await initQuestions()
         const packageValue = {
             bin: {
                 [command]: '/bin/index.js',
             },
         }
+        // 记录指令名称 记录到一个文件里
+        await writeCommandFile(command)
         // 修改项目的package.json的内容
         await writePackage(packageValue)
         // 执行 npm link 指令

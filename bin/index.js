@@ -1,8 +1,10 @@
 #!/usr/bin/env node
+
 const checkNodeVersion = require('./utils/check-node-version')
 checkNodeVersion()
-
-const { Command } = require('commander')
+const {
+    Command
+} = require('commander')
 const program = new Command()
 const listLog = require('./utils/list-log')
 const downloadTemplate = require('./utils/download-template')
@@ -20,7 +22,10 @@ const path = require('path')
 const packagePath = path.resolve(__dirname, '../package.json')
 const packageContent = JSON.parse(fs.readFileSync(packagePath))
 
-const { bin, version } = packageContent
+const {
+    bin,
+    version
+} = packageContent
 const cliShell = Object.keys(bin)[0]
 
 program.version(version, '-v,-V,--version')
@@ -61,7 +66,10 @@ program
         await checkCliVersion()
         // 收集用户信息
         const answers = await initQuestions()
-        const { templateName, projectName } = answers
+        const {
+            templateName,
+            projectName
+        } = answers
         // 检查文件
         const checkedProjectName = await checkFolder(projectName)
         // 下载模板
